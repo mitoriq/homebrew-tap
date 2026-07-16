@@ -24,5 +24,4 @@ cask "mitoriq-collector" do
   binary "mitoriq-collector"
 
   # No zap stanza required
-
 end
