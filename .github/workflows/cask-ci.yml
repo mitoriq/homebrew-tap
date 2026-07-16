@@ -63,6 +63,10 @@ jobs:
         if: steps.collector-cask.outputs.present == 'true'
         run: brew tap --custom-remote mitoriq/tap "$GITHUB_WORKSPACE"
 
+      - name: Trust Collector cask
+        if: steps.collector-cask.outputs.present == 'true'
+        run: brew trust --cask mitoriq/tap/mitoriq-collector
+
       - name: Audit cask
         if: steps.collector-cask.outputs.present == 'true'
         shell: bash
