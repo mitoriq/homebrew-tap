@@ -121,9 +121,7 @@ jobs:
             exit 1
           fi
 
-          assessment="$(spctl --assess --type execute --verbose=4 "$binary" 2>&1)"
-          printf '%s\n' "$assessment"
-          printf '%s\n' "$assessment" | grep -Fx "source=Notarized Developer ID"
+          codesign --verify --strict --verbose=4 --check-notarization -R="notarized" "$binary"
 
       - name: Uninstall cask
         if: always() && steps.collector-cask.outputs.present == 'true'

@@ -11,7 +11,7 @@ fi
 
 require_literal() {
   value="$1"
-  if ! grep -F "$value" "$workflow" >/dev/null; then
+  if ! grep -F -- "$value" "$workflow" >/dev/null; then
     echo "cask CI workflow is missing required value: $value" >&2
     exit 1
   fi
@@ -34,10 +34,8 @@ require_literal 'COLLECTOR_COSIGN_PUBLIC_KEY_SHA256: ${{ vars.COLLECTOR_COSIGN_P
 require_literal 'release_key_sha256'
 require_literal 'release_key_sha256" != "$COLLECTOR_COSIGN_PUBLIC_KEY_SHA256'
 require_literal 'release_team_id'
-require_literal "codesign --verify"
-require_literal "spctl --assess"
+require_literal 'codesign --verify --strict --verbose=4 --check-notarization -R="notarized" "$binary"'
 require_literal 'signed_team_id'
-require_literal 'source=Notarized Developer ID'
 require_literal 'needs: cask'
 require_literal 'CASK_RESULT: ${{ needs.cask.result }}'
 
@@ -48,6 +46,11 @@ fi
 
 if grep -E 'brew audit.*[[:space:]]--new([[:space:]]|$)' "$workflow" >/dev/null; then
   echo "custom tap CI must not apply official Homebrew notability checks" >&2
+  exit 1
+fi
+
+if grep -F 'spctl --assess' "$workflow" >/dev/null; then
+  echo "standalone CLI notarization must be checked with a codesign requirement" >&2
   exit 1
 fi
 
