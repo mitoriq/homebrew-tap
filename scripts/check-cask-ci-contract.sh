@@ -34,7 +34,7 @@ require_literal 'COLLECTOR_COSIGN_PUBLIC_KEY_SHA256: ${{ vars.COLLECTOR_COSIGN_P
 require_literal 'release_key_sha256'
 require_literal 'release_key_sha256" != "$COLLECTOR_COSIGN_PUBLIC_KEY_SHA256'
 require_literal 'release_team_id'
-require_literal 'codesign --verify --strict --verbose=4 -R="notarized" "$binary"'
+require_literal 'codesign --verify --strict --verbose=4 --check-notarization -R="notarized" "$binary"'
 require_literal 'signed_team_id'
 require_literal 'needs: cask'
 require_literal 'CASK_RESULT: ${{ needs.cask.result }}'

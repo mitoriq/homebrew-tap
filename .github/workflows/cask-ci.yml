@@ -121,7 +121,7 @@ jobs:
             exit 1
           fi
 
-          codesign --verify --strict --verbose=4 -R="notarized" "$binary"
+          codesign --verify --strict --verbose=4 --check-notarization -R="notarized" "$binary"
 
       - name: Uninstall cask
         if: always() && steps.collector-cask.outputs.present == 'true'
