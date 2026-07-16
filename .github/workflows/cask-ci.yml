@@ -2,10 +2,6 @@ name: cask-ci
 
 on:
   pull_request:
-    paths:
-      - "Casks/**"
-      - ".github/workflows/cask-ci.yml"
-      - "scripts/check-cask-ci-contract.sh"
   workflow_dispatch:
 
 permissions:

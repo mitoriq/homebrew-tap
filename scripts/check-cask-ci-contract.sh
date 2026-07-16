@@ -45,6 +45,11 @@ if grep -Eq 'pull_request_target|secrets\.' "$workflow"; then
   exit 1
 fi
 
+if grep -Eq '^[[:space:]]+paths:' "$workflow"; then
+  echo "cask CI workflow must run for every pull request when verify is required" >&2
+  exit 1
+fi
+
 if ! awk '
   /^[[:space:]]*uses:/ {
     if ($0 !~ /@[0-9a-f]{40}([[:space:]]|$)/) {
