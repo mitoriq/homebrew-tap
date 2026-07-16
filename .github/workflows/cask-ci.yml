@@ -57,7 +57,7 @@ jobs:
         if: steps.collector-cask.outputs.present == 'true'
         uses: Homebrew/actions/setup-homebrew@1f8e202ffddf94def7f42f6fa3a482e821489f9c # 2026.07.10.1
         with:
-          brew-gh-api-token: ""
+          brew-gh-api-token: ${{ github.token }}
 
       - name: Tap pull request checkout
         if: steps.collector-cask.outputs.present == 'true'
@@ -69,13 +69,7 @@ jobs:
 
       - name: Audit cask
         if: steps.collector-cask.outputs.present == 'true'
-        shell: bash
-        run: |
-          if [[ "${{ steps.collector-cask.outputs.base-present }}" == "true" ]]; then
-            brew audit --strict --cask mitoriq-collector
-          else
-            brew audit --new --cask mitoriq-collector
-          fi
+        run: brew audit --strict --cask mitoriq-collector
 
       - name: Check cask style
         if: steps.collector-cask.outputs.present == 'true'
