@@ -1,0 +1,148 @@
+name: cask-ci
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cask:
+    name: cask (${{ matrix.runner }})
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - macos-15
+          - macos-15-intel
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    env:
+      COLLECTOR_COSIGN_PUBLIC_KEY_SHA256: ${{ vars.COLLECTOR_COSIGN_PUBLIC_KEY_SHA256 }}
+      COLLECTOR_MACOS_TEAM_ID: ${{ vars.COLLECTOR_MACOS_TEAM_ID }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify workflow contract
+        run: sh scripts/check-cask-ci-contract.sh
+
+      - name: Detect Collector cask
+        id: collector-cask
+        shell: bash
+        run: |
+          set -euo pipefail
+          base_present=false
+          if [[ -n "${GITHUB_BASE_REF:-}" ]] && \
+            git cat-file -e "origin/${GITHUB_BASE_REF}:Casks/mitoriq-collector.rb" 2>/dev/null; then
+            base_present=true
+          fi
+
+          if [[ -f Casks/mitoriq-collector.rb ]]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            if [[ "$base_present" == "true" ]]; then
+              echo "Casks/mitoriq-collector.rb must not be removed" >&2
+              exit 1
+            fi
+          fi
+          echo "base-present=$base_present" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Homebrew
+        if: steps.collector-cask.outputs.present == 'true'
+        uses: Homebrew/actions/setup-homebrew@1f8e202ffddf94def7f42f6fa3a482e821489f9c # 2026.07.10.1
+        with:
+          brew-gh-api-token: ""
+
+      - name: Tap pull request checkout
+        if: steps.collector-cask.outputs.present == 'true'
+        run: brew tap --custom-remote mitoriq/tap "$GITHUB_WORKSPACE"
+
+      - name: Audit cask
+        if: steps.collector-cask.outputs.present == 'true'
+        shell: bash
+        run: |
+          if [[ "${{ steps.collector-cask.outputs.base-present }}" == "true" ]]; then
+            brew audit --strict --cask mitoriq-collector
+          else
+            brew audit --new --cask mitoriq-collector
+          fi
+
+      - name: Check cask style
+        if: steps.collector-cask.outputs.present == 'true'
+        run: brew style Casks/mitoriq-collector.rb
+
+      - name: Install cask
+        if: steps.collector-cask.outputs.present == 'true'
+        run: brew install --cask mitoriq/tap/mitoriq-collector
+
+      - name: Verify installed binary trust
+        if: steps.collector-cask.outputs.present == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$COLLECTOR_MACOS_TEAM_ID" =~ ^[A-Z0-9]{10}$ ]]; then
+            echo "COLLECTOR_MACOS_TEAM_ID must be a 10-character Apple Team ID" >&2
+            exit 1
+          fi
+          if [[ ! "$COLLECTOR_COSIGN_PUBLIC_KEY_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "COLLECTOR_COSIGN_PUBLIC_KEY_SHA256 must be a lowercase SHA-256 fingerprint" >&2
+            exit 1
+          fi
+
+          binary="$(command -v mitoriq-collector)"
+          version_output="$(mitoriq-collector version)"
+          printf '%s\n' "$version_output"
+          release_key_sha256="$(printf '%s\n' "$version_output" | tr ' ' '\n' | sed -n 's/^release_key_sha256=//p')"
+          release_team_id="$(printf '%s\n' "$version_output" | tr ' ' '\n' | sed -n 's/^release_team_id=//p')"
+          if [[ ! "$release_key_sha256" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "installed collector does not embed a trusted release key fingerprint" >&2
+            exit 1
+          fi
+          if [[ "$release_key_sha256" != "$COLLECTOR_COSIGN_PUBLIC_KEY_SHA256" ]]; then
+            echo "installed collector release key does not match COLLECTOR_COSIGN_PUBLIC_KEY_SHA256" >&2
+            exit 1
+          fi
+          if [[ "$release_team_id" != "$COLLECTOR_MACOS_TEAM_ID" ]]; then
+            echo "installed collector release Team ID does not match COLLECTOR_MACOS_TEAM_ID" >&2
+            exit 1
+          fi
+
+          codesign --verify --strict --verbose=2 "$binary"
+
+          codesign_details="$(codesign -dv --verbose=4 "$binary" 2>&1)"
+          printf '%s\n' "$codesign_details"
+          signed_team_id="$(printf '%s\n' "$codesign_details" | sed -n 's/^TeamIdentifier=//p')"
+          if [[ "$signed_team_id" != "$COLLECTOR_MACOS_TEAM_ID" ]]; then
+            echo "installed collector signing Team ID does not match COLLECTOR_MACOS_TEAM_ID" >&2
+            exit 1
+          fi
+
+          assessment="$(spctl --assess --type execute --verbose=4 "$binary" 2>&1)"
+          printf '%s\n' "$assessment"
+          printf '%s\n' "$assessment" | grep -Fx "source=Notarized Developer ID"
+
+      - name: Uninstall cask
+        if: always() && steps.collector-cask.outputs.present == 'true'
+        shell: bash
+        run: |
+          if brew list --cask mitoriq-collector >/dev/null 2>&1; then
+            brew uninstall --cask --force mitoriq-collector
+          fi
+
+  verify:
+    name: verify
+    if: always()
+    needs: cask
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Require all Cask checks
+        env:
+          CASK_RESULT: ${{ needs.cask.result }}
+        run: test "$CASK_RESULT" = "success"
