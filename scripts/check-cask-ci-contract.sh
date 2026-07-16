@@ -25,6 +25,7 @@ require_literal "persist-credentials: false"
 require_literal "Homebrew/actions/setup-homebrew@1f8e202ffddf94def7f42f6fa3a482e821489f9c"
 require_literal 'brew-gh-api-token: ""'
 require_literal 'Casks/mitoriq-collector.rb must not be removed'
+require_literal "brew trust --cask mitoriq/tap/mitoriq-collector"
 require_literal "brew audit"
 require_literal "brew style"
 require_literal "brew install --cask mitoriq/tap/mitoriq-collector"
@@ -47,6 +48,36 @@ fi
 
 if grep -Eq '^[[:space:]]+paths:' "$workflow"; then
   echo "cask CI workflow must run for every pull request when verify is required" >&2
+  exit 1
+fi
+
+if ! awk '
+  /brew tap --custom-remote mitoriq\/tap/ {
+    tapped = 1
+  }
+  /brew trust --cask mitoriq\/tap\/mitoriq-collector/ {
+    if (!tapped) {
+      exit 1
+    }
+    trusted = 1
+  }
+  /brew audit/ {
+    if (!trusted) {
+      exit 1
+    }
+  }
+  /brew install --cask mitoriq\/tap\/mitoriq-collector/ {
+    if (!trusted) {
+      exit 1
+    }
+  }
+  END {
+    if (!tapped || !trusted) {
+      exit 1
+    }
+  }
+' "$workflow"; then
+  echo "cask CI workflow must trust the Collector cask after tapping and before audit and install" >&2
   exit 1
 fi
 
