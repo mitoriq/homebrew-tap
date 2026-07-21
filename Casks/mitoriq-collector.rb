@@ -6,12 +6,12 @@ cask "mitoriq-collector" do
     on_intel do
       sha256 "51e715e2a8fc85dc4dfba2f139f2090a7149691101f01db335b13431202aca34"
       url "https://github.com/mitoriq/collector/releases/download/v#{version}/mitoriq-collector_#{version}_darwin_amd64.tar.gz",
-        verified: "github.com/mitoriq/collector/"
+          verified: "github.com/mitoriq/collector/"
     end
     on_arm do
       sha256 "c2433e5dbc607cc5bb5fd7495cccaee761b187209fcb4386c8d9386e886b23ad"
       url "https://github.com/mitoriq/collector/releases/download/v#{version}/mitoriq-collector_#{version}_darwin_arm64.tar.gz",
-        verified: "github.com/mitoriq/collector/"
+          verified: "github.com/mitoriq/collector/"
     end
   end
 
@@ -26,5 +26,4 @@ cask "mitoriq-collector" do
   binary "mitoriq-collector"
 
   # No zap stanza required
-
 end
